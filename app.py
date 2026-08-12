@@ -17,7 +17,7 @@ from pathlib import Path
 from fastapi import FastAPI, File, HTTPException, UploadFile
 from pydantic import BaseModel, Field
 
-from engine import Engine
+from src.engine import Engine
 
 engine = None
 
@@ -57,9 +57,25 @@ def analyze(req: AnalyzeRequest):
     if engine is None:
         raise HTTPException(503, "모델을 아직 올리는 중입니다.")
     try:
-        return engine.analyze(req.task, req.text, req.reason)
+        result = engine.analyze(req.task, req.text, req.reason)
     except KeyError as e:
         raise HTTPException(404, str(e))
+    _log(req.text, result)
+    return result
+
+
+def _log(text, result):
+    """판정을 서버 콘솔에 한 줄로 남긴다.
+
+    앱 화면에서 위험도 숫자를 뺐기 때문에(값이 0 아니면 100이라 정보가 없다) 이 로그가
+    **점수를 볼 수 있는 유일한 자리**가 됐다. 정상 통화가 59.8 을 받는 것 같은 경계선은
+    숫자로만 보인다. `uvicorn` 을 띄운 터미널에 그대로 찍힌다.
+    """
+    stage = result.get("stage")
+    label = f"{stage}단계 {result.get('stage_label') or ''}".strip() if stage else "단계 없음"
+    head = " ".join(text.split())[:46]
+    print(f"  위험도 {result['risk']:5.1f}  {label:<12} {result['elapsed_ms']:>5}ms  {head}…",
+          flush=True)
 
 
 @app.post("/transcribe")

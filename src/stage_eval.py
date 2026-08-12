@@ -7,8 +7,8 @@
 정답지는 규칙을 만들기 **전에** 확정했다(`../Voice-Detection/eval/stage_gold.jsonl`).
 규칙을 만든 쪽이 채점까지 하면 규칙이 맞히는 쪽으로 정답이 휘기 때문이다.
 
-    python3 stage_eval.py              # 규칙만. 모델을 안 올려서 몇 초면 끝난다
-    python3 stage_eval.py --llm        # 생성 모델 기준선까지 함께 (MPS에서 수 분)
+    python3 -m src.stage_eval              # 규칙만. 모델을 안 올려서 몇 초면 끝난다
+    python3 -m src.stage_eval --llm        # 생성 모델 기준선까지 함께 (MPS에서 수 분)
 
 `--llm` 은 **같은 3단계 정의**를 프롬프트에 주고 숫자만 뽑게 한다. 지금 서버가 쓰는 4단계
 프롬프트와 비교하면 정의가 달라 불공평해지므로, 생성 모델에게 가장 유리한 조건
@@ -19,11 +19,12 @@ import argparse
 import json
 from pathlib import Path
 
-import signals
+from . import signals
 
-HERE = Path(__file__).parent
-GOLD = HERE.parent / "Voice-Detection" / "eval" / "stage_gold.jsonl"
-TRANSCRIPTS = HERE.parent / "Voice-Detection" / "repo" / "Multimodal" / "data" / "transcripts"
+ROOT = Path(__file__).resolve().parents[1]
+SIBLING = ROOT.parent / "Voice-Detection"
+GOLD = SIBLING / "eval" / "stage_gold.jsonl"
+TRANSCRIPTS = SIBLING / "repo" / "Multimodal" / "data" / "transcripts"
 
 LLM_PROMPT = """다음은 보이스피싱 통화 전사본이다.
 
@@ -73,7 +74,7 @@ def run_llm(rows, base_model, device):
     """어댑터를 끈 원본 모델에게 단계 숫자만 받는다."""
     import re
     import torch
-    from engine import Engine
+    from .engine import Engine
 
     engine = Engine(base_model=base_model, device=device)
     task = engine.task("voice")

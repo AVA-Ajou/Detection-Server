@@ -59,13 +59,17 @@ Groq Whisper 같은 외부 API에 통화 음성을 넘기지 않아도 된다. �
 
 ```markdown
 Detection-Server/
-├── app.py                  # FastAPI. lifespan에서 모델 1회 적재
+├── app.py                  # FastAPI 진입점. **루트에 남긴다** — `uvicorn app:app` 이 그대로 돈다
 │                           #   POST /analyze     {text, task, reason} → {risk, reason}
 │                           #   POST /transcribe  multipart 오디오 → {text}
 │                           #   GET  /health      적재된 어댑터·온도·오디오 가능 여부
 │   └── _to_wav()           #   afconvert 로 m4a → 16kHz 모노 wav (macOS 전용)
 │
-├── engine.py               # 추론 본체
+│                           # src/ 는 패키지다. `app.py` 가 `from src.engine import Engine`
+│                           # 으로 가져가고, 내부에서는 상대 import(`from . import signals`)를
+│                           # 쓴다. 그래서 스크립트는 `python3 -m src.<이름>` 으로 돌린다.
+│
+├── src/engine.py           # 추론 본체
 │   ├── class Task          #   어댑터 하나 + 그 계약(prompt.json, calibration.json)
 │   │   └── prompt_ids()    #   학습 때와 동일한 프롬프트 재구성  ← 가장 중요한 함수
 │   └── class Engine
@@ -77,12 +81,12 @@ Detection-Server/
 │       ├── explain()       #   근거 문장 생성. 앱은 안 쓴다 — reason:true 일 때만 돈다
 │       └── _clean()        #   생성물에서 근거 문장만 남긴다. 형식 위반을 전제로 짠다
 │
-├── signals.py              # 진행 단계를 정규식으로 읽는다. 모델을 쓰지 않는다
+├── src/signals.py          # 진행 단계를 정규식으로 읽는다. 모델을 쓰지 않는다
 │   ├── SIGNALS             #   (단계, 이름, 패턴). 2·3단계는 요구/질문 문형까지 요구한다
 │   └── stage_of()          #   발동한 신호 중 최대 단계 + 인용구. 없으면 (None, [])
 │
-├── stage_eval.py           # 정답지에 규칙과 생성 모델을 나란히 걸어 정확도를 낸다
-│                           #   python3 stage_eval.py --llm
+├── src/stage_eval.py       # 정답지에 규칙과 생성 모델을 나란히 걸어 정확도를 낸다
+│                           #   python3 -m src.stage_eval --llm
 │
 ├── adapters/               # (gitignore — prompt.json·calibration.json만 예외)
 │   └── voice/              #   폴더 이름이 곧 API의 task 값이 된다
@@ -151,9 +155,9 @@ adb reverse tcp:8000 tcp:8000     # 기기의 localhost:8000 → 맥의 8000
 몇 초면 끝난다.
 
 ```bash
-python3 stage_eval.py                  # 규칙만. 현재 91.7%
-python3 stage_eval.py --show-misses    # 틀린 건과 규칙이 본 근거
-python3 stage_eval.py --llm            # 생성 모델 기준선까지 (모델 적재, 수 분)
+python3 -m src.stage_eval                  # 규칙만. 현재 91.7%
+python3 -m src.stage_eval --show-misses    # 틀린 건과 규칙이 본 근거
+python3 -m src.stage_eval --llm            # 생성 모델 기준선까지 (모델 적재, 수 분)
 ```
 
 `--llm`을 돌릴 때는 **서버를 먼저 내릴 것.** 모델을 하나 더 올려 24GB 맥에서 메모리가 터진다.

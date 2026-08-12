@@ -49,7 +49,7 @@ adapters/voice/
 ```
 
 학습 쪽에서 `train_lora.py`가 전부 함께 저장한다. 이미 학습이 끝난 어댑터라면
-`python3 common.py --write-contract adapter/` 로 계약만 붙일 수 있다.
+`python3 src/common.py --write-contract adapter/` 로 계약만 붙일 수 있다.
 
 ## 설치
 
@@ -122,7 +122,7 @@ POST /transcribe  multipart: file=@통화.m4a, task=voice
 ```
 
 **단계는 모델이 아니라 `signals.py` 가 뽑는다.** 정답지 36건에서 규칙 91.7% / 생성 33.3%
-(`python3 stage_eval.py --llm` 으로 재현). 생성 모델은 1단계를 한 번도 예측하지 못했다.
+(`python3 -m src.stage_eval --llm` 으로 재현). 생성 모델은 1단계를 한 번도 예측하지 못했다.
 
 전사는 어댑터를 끈 원본 Gemma 4가 한다. `.m4a`는 macOS 내장 `afconvert`로 16kHz 모노 wav로
 바꿔 넘긴다 — **리눅스에 올릴 때 `app._to_wav()`를 ffmpeg 등으로 갈아끼워야 한다.**

@@ -20,10 +20,11 @@ import threading
 import time
 from pathlib import Path
 
-import signals
+from . import signals
 
-HERE = Path(__file__).parent
-ADAPTERS = HERE / "adapters"
+# 이 파일은 src/ 안에 있고 어댑터는 저장소 루트에 있다.
+ROOT = Path(__file__).resolve().parents[1]
+ADAPTERS = ROOT / "adapters"
 
 # 판정 결과에 따라 묻는 말이 달라야 한다. "피싱으로 판정되었다"를 무조건 전제로 깔면
 # 정상 통화에도 모델이 억지 근거를 만들어낸다 — 배송 지연 사과를 "감정에 호소하는 사기
