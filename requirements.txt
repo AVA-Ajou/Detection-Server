@@ -6,3 +6,11 @@ peft>=0.14
 accelerate>=1.0
 fastapi>=0.115
 uvicorn>=0.32
+python-multipart>=0.0.9    # /transcribe 의 파일 업로드
+
+# 오디오·이미지 전처리기. Gemma 4 의 프로세서가 요구한다 —
+# 텍스트만 쓸 생각이어도 프로세서를 열려면 있어야 한다.
+librosa>=0.10
+soundfile>=0.12
+pillow>=10
+torchvision>=0.20

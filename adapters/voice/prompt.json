@@ -1,5 +1,5 @@
 {
- "base_model": "google/gemma-3-4b-it",
+ "base_model": "google/gemma-4-E2B-it",
  "instruction": "위 통화가 보이스피싱인지 판단하라. 예 또는 아니오로만 답하라.",
  "max_text_tokens": 1024,
  "yes": "예",
