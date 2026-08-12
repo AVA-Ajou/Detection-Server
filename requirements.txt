@@ -1,0 +1,8 @@
+# 맥(MPS)에서는 bitsandbytes를 쓰지 않는다 — CUDA 전용이라 설치해도 못 쓴다.
+# GPU 서버에 올릴 때만 `pip install bitsandbytes` 를 추가한다.
+torch>=2.5
+transformers>=4.50
+peft>=0.14
+accelerate>=1.0
+fastapi>=0.115
+uvicorn>=0.32

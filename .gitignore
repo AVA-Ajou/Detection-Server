@@ -1,0 +1,9 @@
+# 어댑터 가중치는 학습 저장소의 산출물이라 여기에 커밋하지 않는다.
+# 계약 파일(prompt.json)과 보정값(calibration.json)은 작고, 서버 동작을 규정하므로 남긴다.
+adapters/*/*
+!adapters/*/prompt.json
+!adapters/*/calibration.json
+
+__pycache__/
+*.pyc
+.venv/
