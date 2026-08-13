@@ -1,8 +1,11 @@
 # 어댑터 가중치는 학습 저장소의 산출물이라 여기에 커밋하지 않는다.
 # 계약 파일(prompt.json)과 보정값(calibration.json)은 작고, 서버 동작을 규정하므로 남긴다.
+# .gitkeep 은 계약 파일이 아직 없는 어댑터 폴더를 자리만 잡아두기 위한 것이다.
+# git 이 빈 디렉터리를 추적하지 못해서 필요하다.
 adapters/*/*
 !adapters/*/prompt.json
 !adapters/*/calibration.json
+!adapters/*/.gitkeep
 
 __pycache__/
 *.pyc
