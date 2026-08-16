@@ -6,7 +6,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 **Detection-Server** — 학습된 어댑터를 받아 위험도와 근거를 돌려주는 추론 서버.
 
-안드로이드 앱(`../demo`)이 통화 전사본을 보내면 0~100 위험도를 준다. 학습 저장소
+안드로이드 앱(`../AVA-app`)이 통화 전사본을 보내면 0~100 위험도를 준다. 학습 저장소
 (`../Voice-Detection`)와 분리한 이유는 주기가 다르기 때문이다 — 학습은 가끔 돌리는 오프라인
 배치이고 서버는 항상 떠 있어야 한다.
 
