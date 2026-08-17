@@ -7,6 +7,7 @@
 보인다. 모델 적재에 수십 초가 걸리므로 첫 요청 전에 로그로 준비 완료를 확인할 것.
 """
 
+import json as _json
 import os
 import subprocess
 import tempfile
@@ -17,7 +18,30 @@ from pathlib import Path
 from fastapi import FastAPI, File, HTTPException, UploadFile
 from pydantic import BaseModel, Field
 
+from src import signals as _signals
 from src.engine import Engine
+
+try:
+    import anthropic as _anthropic
+    _ANTHROPIC_AVAILABLE = True
+except ImportError:
+    _ANTHROPIC_AVAILABLE = False
+
+_ANTHROPIC_API_KEY = os.environ.get("ANTHROPIC_API_KEY", "")
+
+# signals.py의 ASSESS_THRESHOLD와 맞춘다 — 이 아래로는 단계를 계산하지 않는다.
+_SMS_ASSESS_THRESHOLD = 20.0
+
+_SMS_PROMPT = """\
+다음 메시지(SMS 또는 카카오톡)가 보이스피싱·스미싱 금융사기인지 판단해라.
+
+메시지:
+{text}
+
+JSON 하나만 출력해라:
+{{"risk": <0~100 정수>}}
+
+0 = 완전 정상, 100 = 확실한 피싱."""
 
 engine = None
 
@@ -54,6 +78,8 @@ def health():
 
 @app.post("/analyze")
 def analyze(req: AnalyzeRequest):
+    if req.task == "sms":
+        return _analyze_sms(req.text)
     if engine is None:
         raise HTTPException(503, "모델을 아직 올리는 중입니다.")
     try:
@@ -61,6 +87,52 @@ def analyze(req: AnalyzeRequest):
     except KeyError as e:
         raise HTTPException(404, str(e))
     _log(req.text, result)
+    return result
+
+
+def _analyze_sms(text: str) -> dict:
+    """SMS·카카오톡 텍스트를 Claude API로 판정한다.
+
+    음성 모델(Gemma LoRA)은 통화 전사본에 특화되어 있어 단문 문자 채널에 쓰면
+    보정 보장이 깨진다. SMS는 Claude에 위임하고 응답 포맷만 voice와 동일하게 맞춘다.
+    단계 판정은 signals.py 정규식을 그대로 쓴다 — 이체·계좌·링크 패턴은 채널 무관하게 작동한다.
+    """
+    if not _ANTHROPIC_AVAILABLE:
+        raise HTTPException(503, "anthropic 패키지가 없습니다. pip install anthropic")
+    if not _ANTHROPIC_API_KEY:
+        raise HTTPException(503, "ANTHROPIC_API_KEY 환경변수가 설정되지 않았습니다.")
+
+    started = time.perf_counter()
+
+    client = _anthropic.Anthropic(api_key=_ANTHROPIC_API_KEY)
+    message = client.messages.create(
+        model="claude-haiku-4-5-20251001",
+        max_tokens=64,
+        messages=[{"role": "user", "content": _SMS_PROMPT.format(text=text)}],
+    )
+
+    raw = message.content[0].text.strip()
+    try:
+        risk = float(max(0.0, min(100.0, _json.loads(raw).get("risk", 0))))
+    except (ValueError, KeyError, _json.JSONDecodeError):
+        raise HTTPException(500, f"Claude 응답 파싱 실패: {raw[:120]}")
+
+    # 위험도가 문턱 위일 때만 단계를 계산한다. 정상 메시지에 단계를 붙이면
+    # "사기가 진행 중"이라는 잘못된 신호가 된다.
+    if risk >= _SMS_ASSESS_THRESHOLD:
+        stage_num, evidence = _signals.stage_of(text)
+    else:
+        stage_num, evidence = None, []
+
+    result = {
+        "task": "sms",
+        "risk": risk,
+        "stage": stage_num,
+        "stage_label": _signals.label(stage_num),
+        "stage_evidence": [q for _, q in evidence],
+        "elapsed_ms": round((time.perf_counter() - started) * 1000),
+    }
+    _log(text, result)
     return result
 
 
