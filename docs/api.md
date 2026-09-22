@@ -240,7 +240,7 @@ python3 src/common.py --write-contract adapter/
 ```
 Gemma 4 E2B  10.0GB     ← 한 번만
 voice         0.09GB
-sms           0.09GB
+sms           0.09GB   (온도 2.665, 맥 bf16 에서 보정. adapters/sms/README.md)
 ```
 
 ## 환경 변수

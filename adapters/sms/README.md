@@ -1,207 +1,48 @@
----
-base_model: unsloth/gemma-4-E2B-it-unsloth-bnb-4bit
-library_name: peft
-pipeline_tag: text-generation
-tags:
-- base_model:adapter:unsloth/gemma-4-E2B-it-unsloth-bnb-4bit
-- lora
-- transformers
----
+# 문자·카카오톡 어댑터 (`task = "sms"`)
 
-# Model Card for Model ID
+| | |
+|---|---|
+| 베이스 | `google/gemma-4-E2B-it` (서버는 같은 가중치의 미러 `unsloth/gemma-4-E2B-it` 를 올린다) |
+| 학습 | Colab T4, QLoRA 4bit, rank 16, 2 epoch, 134 스텝 (17분). `../Voice-Detection/src/train_lora.py --task sms` |
+| 학습셋 | `../Voice-Detection/src/build_sms_set.py` 산출물 634건 (학습 539 / 검증 95). 수법별 틀 × 자리 채우기. **지어낸 문장**이다 |
+| 온도 | 2.665 — **맥 bf16(서빙 환경)** 에서 검증셋 95건으로 구했다 (`evaluate.py --task sms`) |
+| 계약 | `prompt.json` — "위 메시지가 사기(스미싱·메신저피싱)인지 판단하라. 예 또는 아니오로만 답하라." 상한 512 토큰 |
 
-<!-- Provide a quick summary of what the model is/does. -->
+## 라벨 정의 — 통화와 다르다
 
+통화 어댑터의 정답은 "이 통화가 보이스피싱인가"다. 이 어댑터의 정답은
+**"이 메시지가 사기 시나리오의 일부인가"**다. 실제 다채널 사기는 첫 조각을 정상처럼 꾸민다 —
+"참고인 조사 안내입니다, 담당관이 연락드립니다" 같은 문자는 문장만 보면 정상이다. 그 조각을
+양성으로 넣었기 때문에, 이 어댑터는 그런 문자에 높은 점수를 준다. 정상 안내와 헷갈리지 않게
+어려운 정상(친구 송금 확인, 은행 상담 예약, 진짜 택배 안내)을 함께 넣었다.
 
+결합 입력(`[문자] …\n[통화] …`)도 학습했다. 세션 단위 재판정을 붙일 때 같은 어댑터를 쓸 수 있다.
 
-## Model Details
+## 측정 (2026-09-22, `python3 -m src.sms_eval`)
 
-### Model Description
+평가 문장은 학습 틀과 다르게 따로 썼다(`../Voice-Detection/eval/sms_cases.jsonl`, `sms_scenarios.jsonl`).
+그래도 **같은 사람이 지은 문장**이라 실사용 성능의 근거로 쓰지 말 것. 어댑터를 바꿨을 때 나란히
+비교하는 기준선이다.
 
-<!-- Provide a longer summary of what this model is. -->
+| | 이전 어댑터 (8/20, 기록 없음) | 이 어댑터 |
+|---|---|---|
+| 스미싱 20건 탐지 (문턱 20) | 20/20 | 20/20 |
+| 정상 20건 오탐 (문턱 20) | 2/20 (`도서관 앞에서 기다려` 43.7, `회비 보냈어` 53.9) | 0/20 |
+| 사기 앞 조각 — 검찰 참고인 안내 문자 | 11.8 정상 | 81.8 경보 |
+| 사기 앞 조각 — "폰 바꿔서 이 번호야" | 93.8 | 65.8 |
+| 정상 결합(택배 문자 + 기사 전화) | 86.4 **오탐** | 5.4 |
+| 다채널 시나리오 5건 중 앱이 격상까지 하는 건수 | 3 | 4 (남은 1건은 통화 조각 0.4 — 통화 어댑터 몫) |
+| 검증셋 95건 AUROC / 온도 | 0.951 / 6.453 | 1.000 / 2.665 |
 
+가장 약한 건: 부고 스미싱(`빈소 안내: http://…`) 23.6 → 예보. 알림은 나가지만 등급이 낮다.
 
+## 이전 어댑터
 
-- **Developed by:** [More Information Needed]
-- **Funded by [optional]:** [More Information Needed]
-- **Shared by [optional]:** [More Information Needed]
-- **Model type:** [More Information Needed]
-- **Language(s) (NLP):** [More Information Needed]
-- **License:** [More Information Needed]
-- **Finetuned from model [optional]:** [More Information Needed]
+박건 8/20 커밋(`843ffcb`). 학습 데이터·평가 기록이 없었고 README 가 빈 템플릿이었으며,
+`adapter_config.json` 의 베이스가 4bit 미러(`unsloth/gemma-4-E2B-it-unsloth-bnb-4bit`)로 적혀 있어
+서버 베이스와 달랐다. 온도도 없어(1.0) 위험도가 0 아니면 100 으로만 나왔다. 되돌리려면 그 커밋의
+`adapters/sms/` 를 꺼내고, 온도는 위 절차로 다시 구할 것.
 
-### Model Sources [optional]
+## 다시 학습하려면
 
-<!-- Provide the basic links for the model. -->
-
-- **Repository:** [More Information Needed]
-- **Paper [optional]:** [More Information Needed]
-- **Demo [optional]:** [More Information Needed]
-
-## Uses
-
-<!-- Address questions around how the model is intended to be used, including the foreseeable users of the model and those affected by the model. -->
-
-### Direct Use
-
-<!-- This section is for the model use without fine-tuning or plugging into a larger ecosystem/app. -->
-
-[More Information Needed]
-
-### Downstream Use [optional]
-
-<!-- This section is for the model use when fine-tuned for a task, or when plugged into a larger ecosystem/app -->
-
-[More Information Needed]
-
-### Out-of-Scope Use
-
-<!-- This section addresses misuse, malicious use, and uses that the model will not work well for. -->
-
-[More Information Needed]
-
-## Bias, Risks, and Limitations
-
-<!-- This section is meant to convey both technical and sociotechnical limitations. -->
-
-[More Information Needed]
-
-### Recommendations
-
-<!-- This section is meant to convey recommendations with respect to the bias, risk, and technical limitations. -->
-
-Users (both direct and downstream) should be made aware of the risks, biases and limitations of the model. More information needed for further recommendations.
-
-## How to Get Started with the Model
-
-Use the code below to get started with the model.
-
-[More Information Needed]
-
-## Training Details
-
-### Training Data
-
-<!-- This should link to a Dataset Card, perhaps with a short stub of information on what the training data is all about as well as documentation related to data pre-processing or additional filtering. -->
-
-[More Information Needed]
-
-### Training Procedure
-
-<!-- This relates heavily to the Technical Specifications. Content here should link to that section when it is relevant to the training procedure. -->
-
-#### Preprocessing [optional]
-
-[More Information Needed]
-
-
-#### Training Hyperparameters
-
-- **Training regime:** [More Information Needed] <!--fp32, fp16 mixed precision, bf16 mixed precision, bf16 non-mixed precision, fp16 non-mixed precision, fp8 mixed precision -->
-
-#### Speeds, Sizes, Times [optional]
-
-<!-- This section provides information about throughput, start/end time, checkpoint size if relevant, etc. -->
-
-[More Information Needed]
-
-## Evaluation
-
-<!-- This section describes the evaluation protocols and provides the results. -->
-
-### Testing Data, Factors & Metrics
-
-#### Testing Data
-
-<!-- This should link to a Dataset Card if possible. -->
-
-[More Information Needed]
-
-#### Factors
-
-<!-- These are the things the evaluation is disaggregating by, e.g., subpopulations or domains. -->
-
-[More Information Needed]
-
-#### Metrics
-
-<!-- These are the evaluation metrics being used, ideally with a description of why. -->
-
-[More Information Needed]
-
-### Results
-
-[More Information Needed]
-
-#### Summary
-
-
-
-## Model Examination [optional]
-
-<!-- Relevant interpretability work for the model goes here -->
-
-[More Information Needed]
-
-## Environmental Impact
-
-<!-- Total emissions (in grams of CO2eq) and additional considerations, such as electricity usage, go here. Edit the suggested text below accordingly -->
-
-Carbon emissions can be estimated using the [Machine Learning Impact calculator](https://mlco2.github.io/impact#compute) presented in [Lacoste et al. (2019)](https://arxiv.org/abs/1910.09700).
-
-- **Hardware Type:** [More Information Needed]
-- **Hours used:** [More Information Needed]
-- **Cloud Provider:** [More Information Needed]
-- **Compute Region:** [More Information Needed]
-- **Carbon Emitted:** [More Information Needed]
-
-## Technical Specifications [optional]
-
-### Model Architecture and Objective
-
-[More Information Needed]
-
-### Compute Infrastructure
-
-[More Information Needed]
-
-#### Hardware
-
-[More Information Needed]
-
-#### Software
-
-[More Information Needed]
-
-## Citation [optional]
-
-<!-- If there is a paper or blog post introducing the model, the APA and Bibtex information for that should go in this section. -->
-
-**BibTeX:**
-
-[More Information Needed]
-
-**APA:**
-
-[More Information Needed]
-
-## Glossary [optional]
-
-<!-- If relevant, include terms and calculations in this section that can help readers understand the model or model card. -->
-
-[More Information Needed]
-
-## More Information [optional]
-
-[More Information Needed]
-
-## Model Card Authors [optional]
-
-[More Information Needed]
-
-## Model Card Contact
-
-[More Information Needed]
-### Framework versions
-
-- PEFT 0.20.0
+`../Voice-Detection/docs/COLAB.md` 끝의 "문자 어댑터" 절. 학습은 Colab, **온도는 맥에서**.

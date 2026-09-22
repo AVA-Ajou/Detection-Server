@@ -24,6 +24,7 @@ from . import signals
 ROOT = Path(__file__).resolve().parents[1]
 SIBLING = ROOT.parent / "Voice-Detection"
 GOLD = SIBLING / "eval" / "stage_gold.jsonl"
+GOLD_SMS = SIBLING / "eval" / "stage_gold_sms.jsonl"
 TRANSCRIPTS = SIBLING / "repo" / "Multimodal" / "data" / "transcripts"
 
 LLM_PROMPT = """다음은 보이스피싱 통화 전사본이다.
@@ -40,20 +41,30 @@ LLM_PROMPT = """다음은 보이스피싱 통화 전사본이다.
 
 
 def load_gold(path):
+    """통화 정답지는 id 로 전사본을 찾고, 문자 정답지는 본문을 안에 들고 있다.
+
+    문자는 지어낸 문장이라 재배포 제한이 없어 본문째 커밋했다. 통화는 원문이 금감원·AI Hub
+    파생물이라 인용 범위만 커밋하고 본문은 `fetch.py` 로 받아온다.
+    """
     rows = []
     for line in Path(path).open(encoding="utf-8"):
         row = json.loads(line)
-        src = TRANSCRIPTS / "vishing" / f"{row['id']}.json"
-        row["text"] = json.loads(src.read_text(encoding="utf-8")).get("text", "")
+        if "text" not in row:
+            src = TRANSCRIPTS / "vishing" / f"{row['id']}.json"
+            row["text"] = json.loads(src.read_text(encoding="utf-8")).get("text", "")
         rows.append(row)
     return rows
 
 
 def score(name, rows, key):
-    """정확도와 ±1 이내. 단계를 못 낸 건(None)은 오답으로 센다."""
+    """정확도와 ±1 이내. 정답이 있는 건에서 단계를 못 낸 것(None)은 오답이다.
+
+    정답이 `null` 인 행(정상 문자)은 규칙도 아무것도 안 잡아야 맞다 — 문자 정답지에만 있다.
+    """
     exact = sum(1 for r in rows if r[key] == r["stage"])
-    near = sum(1 for r in rows if r[key] is not None and abs(r[key] - r["stage"]) <= 1)
-    blank = sum(1 for r in rows if r[key] is None)
+    near = sum(1 for r in rows if r["stage"] is None and r[key] is None
+               or r["stage"] is not None and r[key] is not None and abs(r[key] - r["stage"]) <= 1)
+    blank = sum(1 for r in rows if r[key] is None and r["stage"] is not None)
     n = len(rows)
     print(f"  {name:10} 정확 {exact:3}/{n} ({exact/n*100:5.1f}%)   "
           f"±1 이내 {near:3}/{n} ({near/n*100:5.1f}%)   판단 못 함 {blank}건")
@@ -63,11 +74,12 @@ def score(name, rows, key):
 def confusion(name, rows, key):
     print(f"\n{name} — 행이 정답, 열이 예측")
     print(f"{'':8}{'1':>6}{'2':>6}{'3':>6}{'없음':>6}")
-    for gold in (1, 2, 3):
+    golds = (1, 2, 3) + ((None,) if any(r["stage"] is None for r in rows) else ())
+    for gold in golds:
         cells = []
         for pred in (1, 2, 3, None):
             cells.append(sum(1 for r in rows if r["stage"] == gold and r[key] == pred))
-        print(f"  정답 {gold}{cells[0]:6}{cells[1]:6}{cells[2]:6}{cells[3]:6}")
+        print(f"  정답 {gold if gold else '없음'}{cells[0]:6}{cells[1]:6}{cells[2]:6}{cells[3]:6}")
 
 
 def run_llm(rows, base_model, device):
@@ -102,18 +114,20 @@ def run_llm(rows, base_model, device):
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     parser.add_argument("--gold", default=str(GOLD))
+    parser.add_argument("--sms", action="store_true", help="문자 정답지(stage_gold_sms.jsonl)로 잰다")
     parser.add_argument("--llm", action="store_true", help="생성 모델 기준선도 잰다")
     parser.add_argument("--base-model")
     parser.add_argument("--device")
     parser.add_argument("--show-misses", action="store_true", help="규칙이 틀린 건을 자세히 본다")
     args = parser.parse_args()
 
-    rows = load_gold(args.gold)
+    rows = load_gold(GOLD_SMS if args.sms else args.gold)
     for row in rows:
         row["rule"], row["evidence"] = signals.stage_of(row["text"])
 
     print(f"정답지 {len(rows)}건 — "
-          + " / ".join(f"{s}단계 {sum(1 for r in rows if r['stage'] == s)}" for s in (1, 2, 3)))
+          + " / ".join(f"{s}단계 {sum(1 for r in rows if r['stage'] == s)}" for s in (1, 2, 3))
+          + f" / 정상 {sum(1 for r in rows if r['stage'] is None)}")
 
     if args.llm:
         print("\n생성 모델 기준선 측정 중")

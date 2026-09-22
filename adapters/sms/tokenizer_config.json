@@ -20,7 +20,7 @@
   "is_local": false,
   "local_files_only": false,
   "mask_token": "<mask>",
-  "model_max_length": 131072,
+  "model_max_length": 1000000000000000019884624838656,
   "model_specific_special_tokens": {
     "audio_token": "<|audio|>",
     "boa_token": "<|audio>",
@@ -84,6 +84,52 @@
     },
     "type": "object",
     "x-regex": "(\\<\\|channel\\>thought\\n(?P<thinking>.*?)\\<channel\\|\\>)?(?P<tool_calls>\\<\\|tool_call\\>.*\\<tool_call\\|\\>)?(?P<content>(?:(?!\\<turn\\|\\>)(?!\\<\\|tool_response\\>).)+)?(?:\\<turn\\|\\>|\\<\\|tool_response\\>)?"
+  },
+  "response_template": {
+    "defaults": {
+      "role": "assistant"
+    },
+    "fields": {
+      "content": {
+        "close": [
+          "<turn|>",
+          "<|tool_response>",
+          "<eos>"
+        ],
+        "content": "text"
+      },
+      "thinking": {
+        "close": "<channel|>",
+        "content": "text",
+        "open": "<|channel>thought\n"
+      },
+      "tool_calls": {
+        "close": "<tool_call|>",
+        "content": "json",
+        "content_args": {
+          "string_delims": [
+            [
+              "<|\"|>",
+              "<|\"|>"
+            ]
+          ],
+          "unquoted_keys": true
+        },
+        "open_pattern": "<\\|tool_call>call:(?P<name>\\w+)",
+        "repeats": true,
+        "transform": {
+          "function": {
+            "arguments": "{content}",
+            "name": "{name}"
+          },
+          "type": "function"
+        }
+      }
+    },
+    "start_anchor": [
+      "<|turn>model\n",
+      "<tool_response|>"
+    ]
   },
   "soc_token": "<|channel>",
   "sot_token": "<|turn>",

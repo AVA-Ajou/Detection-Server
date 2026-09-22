@@ -1,3 +1,9 @@
+{#
+  Template: Google Gemma 4 Canonical Chat Template
+  Author: Google Gemma Engineering Team
+  Published: 2026-07-09
+  Context: Fixed tool-calling loops, turn closures, and thinking content-ordering.
+#}
 {%- macro format_parameters(properties, required, filter_keys=false) -%}
     {%- set standard_keys = ['description', 'type', 'properties', 'required', 'nullable'] -%}
     {%- set ns = namespace(found_first=false) -%}
@@ -247,17 +253,12 @@
                             {{- key -}}:{{- format_argument(value, escape_keys=False) -}}
                         {%- endfor -%}
                     {%- elif function['arguments'] is none -%}
-                    {%- elif function['arguments'] is string -%}
-                        {#- Pre-serialized args (e.g. an OpenAI JSON string). We cannot JSON-parse
-                            portably in-template, so render non-fatally instead of erroring. Strip an
-                            outer {...} so it composes with the DSL braces rather than double-wrapping.
-                            Prefer passing arguments as a mapping for exact Gemma DSL. -#}
-                        {%- set argstr = function['arguments'] | trim -%}
-                        {%- if argstr[:1] == '{' and argstr[-1:] == '}' -%}
-                            {{- argstr[1:-1] -}}
-                        {%- else -%}
-                            {{- function['arguments'] -}}
-                        {%- endif -%}
+                    {%- else -%}
+                        {{- raise_exception(
+                            "chat_template: tool_calls[].function.arguments must be a "
+                            "JSON object (mapping), not a string. Deserialize arguments "
+                            "before passing to the template."
+                        ) -}}
                     {%- endif -%}
                     {{- '}<tool_call|>' -}}
                 {%- endfor -%}
